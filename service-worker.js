@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vitality-log-v8';
+const CACHE_NAME = 'vitality-log-v12';
 const ASSETS = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
