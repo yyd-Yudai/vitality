@@ -91,7 +91,8 @@
     align-items:center;justify-content:center;font-size:12px;color:var(--ink-soft);position:relative;
   }
   .cal-cell .d{font-size:11px;}
-  .cal-cell .p{font-family:'M PLUS Rounded 1c',sans-serif;font-size:12px;font-weight:700;color:var(--teal);}
+  .cal-cell .p{font-family:'M PLUS Rounded 1c',sans-serif;font-size:12px;font-weight:700;color:var(--teal);line-height:1.1;}
+  .cal-cell .t{font-size:10px;line-height:1;margin-top:1px;}
   .cal-cell.has-point{background:var(--coral-soft);}
   .cal-cell.has-point .p{color:var(--coral);}
   .cal-cell.today{box-shadow:inset 0 0 0 2px var(--gold);}
@@ -199,7 +200,7 @@
       </div>
       <div class="cal-grid" id="cal-dow-row"></div>
       <div class="cal-grid" id="cal-grid" style="margin-top:5px;"></div>
-      <div class="cal-legend">数字は当日の獲得ポイント</div>
+      <div class="cal-legend">数字は当日の獲得ポイント／🚶歩数・❤️心拍数でポイント獲得</div>
       <div class="month-total">
         <div>
           <div class="lbl">今月の合計獲得ポイント</div>
@@ -570,7 +571,11 @@ function renderCalendar(){
   dowRow.innerHTML = ['日','月','火','水','木','金','土'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
 
   const pointMap = {};
-  STATE.exercise.forEach(r => { pointMap[r.date] = (pointMap[r.date]||0) + Number(r.points||0); });
+  const typeMap = {};
+  STATE.exercise.forEach(r => {
+    pointMap[r.date] = (pointMap[r.date]||0) + Number(r.points||0);
+    if(Number(r.points||0) > 0) typeMap[r.date] = r.type;
+  });
 
   const firstDow = new Date(y, m, 1).getDay();
   const daysInMonth = new Date(y, m+1, 0).getDate();
@@ -578,15 +583,19 @@ function renderCalendar(){
   let html = '';
   for(let i=0;i<firstDow;i++) html += '<div class="cal-cell empty"></div>';
 
+  const typeIcon = { '歩数': '🚶', '心拍数': '❤️' };
+
   let monthTotal = 0;
   for(let day=1; day<=daysInMonth; day++){
     const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const pt = pointMap[dateStr] || 0;
     monthTotal += pt;
     const isToday = dateStr === todayStr();
+    const icon = typeIcon[typeMap[dateStr]] || '';
     html += `<div class="cal-cell ${pt>0?'has-point':''} ${isToday?'today':''}">
       <div class="d">${day}</div>
       <div class="p">${pt>0? pt : ''}</div>
+      <div class="t">${icon}</div>
     </div>`;
   }
   grid.innerHTML = html;
