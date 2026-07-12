@@ -212,12 +212,9 @@
   <!-- 目標タブ -->
   <section id="view-goal" class="view">
     <div class="card">
-      <h2><span class="dot"></span>月間目標</h2>
+      <h2><span class="dot"></span>月間目標（固定 1,200pt）</h2>
       <label>対象月</label>
       <input type="month" id="goal-month">
-      <label>目標ポイント</label>
-      <input type="number" id="goal-target" placeholder="例: 2000" inputmode="numeric">
-      <button class="btn secondary" onclick="saveGoal()">目標を保存</button>
 
       <div class="goal-bar-track"><div class="goal-bar-fill" id="goal-bar" style="width:0%;"></div></div>
       <div class="goal-remain" id="goal-remain-text">目標を設定してください</div>
@@ -351,13 +348,26 @@ async function apiGet(){
     document.getElementById('setup-overlay').style.display = 'flex';
     return;
   }
-  const res = await fetch(url);
-  const data = await res.json();
-  STATE = data;
-  populateRewardOptions();
-  populateExerciseSelects();
-  renderChallengeList();
-  renderChallengeInput();
+  let data;
+  try {
+    const res = await fetch(url);
+    data = await res.json();
+  } catch(err) {
+    console.error('apiGet failed', err);
+    showToast('データ取得に失敗しました。GAS URLやデプロイ設定を確認してください');
+    return;
+  }
+  if(data && data.error){
+    console.error('GAS error', data.error);
+    showToast('サーバー側エラー: ' + data.error);
+    return;
+  }
+  STATE = Object.assign({ exercise: [], challenges: [], goals: [], settings: null }, data);
+
+  try { populateRewardOptions(); } catch(err){ console.error('populateRewardOptions failed', err); }
+  try { populateExerciseSelects(); } catch(err){ console.error('populateExerciseSelects failed', err); }
+  try { renderChallengeList(); } catch(err){ console.error('renderChallengeList failed', err); }
+  try { renderChallengeInput(); } catch(err){ console.error('renderChallengeInput failed', err); }
   if(document.getElementById('view-calendar').classList.contains('active')) renderCalendar();
   if(document.getElementById('view-goal').classList.contains('active')) renderGoal();
 }
@@ -394,39 +404,54 @@ function populateRewardOptions(){
 }
 
 function populateExerciseSelects(){
-  if(!STATE.settings) return;
-
-  const age = calcAgeJS(STATE.settings.profile['生年月日']);
-  const group = age >= 65 ? '65歳以上' : '64歳以下';
-
   const stepSel = document.getElementById('ex-steps-select');
-  stepSel.innerHTML = '';
-  (STATE.settings.stepRule || [])
+  const hrSel = document.getElementById('ex-hr-select');
+
+  if(!STATE.settings){
+    stepSel.innerHTML = '<option disabled selected>設定を読み込めませんでした</option>';
+    hrSel.innerHTML = '<option disabled selected>設定を読み込めませんでした</option>';
+    return;
+  }
+
+  const age = calcAgeJS(STATE.settings.profile?.['生年月日']);
+  const group = (Number.isFinite(age) && age >= 65) ? '65歳以上' : '64歳以下';
+
+  const stepRows = (STATE.settings.stepRule || [])
     .filter(r => r['年齢区分'] === group)
-    .sort((a,b) => Number(a['下限歩数']) - Number(b['下限歩数']))
-    .forEach(r=>{
+    .sort((a,b) => Number(a['下限歩数']) - Number(b['下限歩数']));
+
+  stepSel.innerHTML = '';
+  if(stepRows.length === 0){
+    stepSel.innerHTML = '<option disabled selected>設定_歩数ポイントシートに選択肢がありません</option>';
+  } else {
+    stepRows.forEach(r=>{
       const opt = document.createElement('option');
       opt.value = r['下限歩数'];
       opt.textContent = `${Number(r['下限歩数']).toLocaleString()}歩以上（${r['ポイント']}pt）`;
       stepSel.appendChild(opt);
     });
+  }
 
-  const hrSel = document.getElementById('ex-hr-select');
-  hrSel.innerHTML = '';
   const order = { '低負荷': 0, '高負荷': 1 };
-  (STATE.settings.hrRule || [])
+  const hrRows = (STATE.settings.hrRule || [])
     .slice()
     .sort((a,b)=>{
       const oa = order[a['強度']] ?? 0, ob = order[b['強度']] ?? 0;
       if(oa !== ob) return oa - ob;
       return Number(a['継続時間分']) - Number(b['継続時間分']);
-    })
-    .forEach(r=>{
+    });
+
+  hrSel.innerHTML = '';
+  if(hrRows.length === 0){
+    hrSel.innerHTML = '<option disabled selected>設定_心拍数ポイントシートに選択肢がありません</option>';
+  } else {
+    hrRows.forEach(r=>{
       const opt = document.createElement('option');
       opt.value = `${r['強度']}|${r['継続時間分']}`;
       opt.textContent = `${r['強度']}：${r['継続時間分']}分（${r['ポイント']}pt）`;
       hrSel.appendChild(opt);
     });
+  }
 }
 
 /* ---- 運動記録 ---- */
@@ -555,16 +580,8 @@ function renderCalendar(){
   document.getElementById('month-total-num').textContent = monthTotal;
 }
 
-/* ---- 月間目標 ---- */
-async function saveGoal(){
-  const month = document.getElementById('goal-month').value;
-  const target = document.getElementById('goal-target').value;
-  if(!month || !target){ showToast('対象月と目標ポイントを入力してください'); return; }
-  await apiPost('setGoal', { month, target: Number(target) });
-  showToast('目標を保存しました');
-  await apiGet();
-  renderGoal();
-}
+/* ---- 月間目標（常に1,200pt固定） ---- */
+const MONTHLY_GOAL_TARGET = 1200;
 
 function renderGoal(){
   const now = new Date();
@@ -573,9 +590,6 @@ function renderGoal(){
     document.getElementById('goal-month').value = curMonth;
   }
   const selMonth = document.getElementById('goal-month').value || curMonth;
-  const goal = STATE.goals.find(g => g.month === selMonth);
-  const target = goal ? goal.target : 0;
-  if(goal) document.getElementById('goal-target').value = target;
 
   const achieved = STATE.exercise
     .filter(r => r.date.startsWith(selMonth))
@@ -584,19 +598,16 @@ function renderGoal(){
   const bar = document.getElementById('goal-bar');
   const remainText = document.getElementById('goal-remain-text');
 
-  if(target > 0){
-    const pct = Math.min(100, Math.round((achieved/target)*100));
-    bar.style.width = pct + '%';
-    if(achieved >= target){
-      remainText.innerHTML = `🎉 目標達成済み！（${achieved} / ${target} pt）`;
-    } else {
-      remainText.innerHTML = `あと <b>${target-achieved}</b> ポイントで目標達成（${achieved} / ${target} pt）`;
-    }
+  const pct = Math.min(100, Math.round((achieved/MONTHLY_GOAL_TARGET)*100));
+  bar.style.width = pct + '%';
+  if(achieved >= MONTHLY_GOAL_TARGET){
+    remainText.innerHTML = `🎉 目標達成済み！（${achieved} / ${MONTHLY_GOAL_TARGET} pt）`;
   } else {
-    bar.style.width = '0%';
-    remainText.textContent = '目標を設定してください';
+    remainText.innerHTML = `あと <b>${MONTHLY_GOAL_TARGET-achieved}</b> ポイントで目標達成（${achieved} / ${MONTHLY_GOAL_TARGET} pt）`;
   }
 }
+
+document.getElementById('goal-month').addEventListener('change', renderGoal);
 
 /* ---- 初期化 ---- */
 document.getElementById('ex-date').value = todayStr();
