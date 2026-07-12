@@ -41,11 +41,12 @@
   .card h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--coral);display:inline-block;}
 
   label{display:block;font-size:12px;color:var(--ink-soft);margin:10px 0 4px;font-weight:500;}
-  select,input[type=date],input[type=number],input[type=text]{
+  select,input[type=date],input[type=number],input[type=text],input[type=month]{
     width:100%;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);
     font-size:15px;background:#FAFDFC;color:var(--ink);font-family:inherit;
   }
   select:focus,input:focus{outline:none;border-color:var(--teal);}
+  input[readonly]{background:var(--bg);color:var(--ink-soft);}
   .btn{
     width:100%;margin-top:16px;padding:13px;border:none;border-radius:14px;
     background:var(--coral);color:#fff;font-weight:700;font-size:14px;letter-spacing:.02em;
@@ -60,6 +61,10 @@
   .point-badge{
     display:inline-flex;align-items:center;gap:4px;background:var(--coral-soft);color:var(--coral);
     font-weight:700;padding:4px 10px;border-radius:20px;font-size:13px;margin-top:10px;
+  }
+  .achieved-badge{
+    display:inline-flex;align-items:center;gap:6px;background:#E4F4EC;color:#1E8A57;
+    font-weight:700;padding:6px 12px;border-radius:20px;font-size:13px;
   }
 
   nav.tabs{
@@ -143,20 +148,12 @@
 
       <div id="ex-steps-fields">
         <label>歩数</label>
-        <input type="number" id="ex-steps" placeholder="例: 10000" inputmode="numeric">
+        <select id="ex-steps-select"></select>
       </div>
 
       <div id="ex-hr-fields" style="display:none;">
-        <div class="row">
-          <div>
-            <label>継続時間（分）</label>
-            <input type="number" id="ex-minutes" placeholder="例: 30" inputmode="numeric">
-          </div>
-          <div>
-            <label>平均心拍数</label>
-            <input type="number" id="ex-avghr" placeholder="例: 120" inputmode="numeric">
-          </div>
-        </div>
+        <label>強度・継続時間</label>
+        <select id="ex-hr-select"></select>
       </div>
 
       <button class="btn" onclick="saveExercise()">記録してポイント計算</button>
@@ -168,17 +165,22 @@
       <h2><span class="dot"></span>週間チャレンジの報酬を記録</h2>
       <div class="row">
         <div>
-          <label>週開始日（月曜想定）</label>
+          <label>週開始日（月曜）</label>
           <input type="date" id="ch-start">
         </div>
         <div>
-          <label>週終了日</label>
-          <input type="date" id="ch-end">
+          <label>週終了日（日曜）</label>
+          <input type="date" id="ch-end" readonly>
         </div>
       </div>
-      <label>獲得した報酬</label>
-      <select id="ch-reward"></select>
-      <button class="btn secondary" onclick="saveChallenge()">報酬を保存</button>
+
+      <div id="ch-achieved-area" style="display:none;"></div>
+
+      <div id="ch-input-area">
+        <label>獲得した報酬</label>
+        <select id="ch-reward"></select>
+        <button class="btn secondary" onclick="saveChallenge()">報酬を保存</button>
+      </div>
     </div>
 
     <div class="card">
@@ -287,6 +289,27 @@ function todayStr(){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 
+function fmtDate(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function getMonday(date){
+  const d = new Date(date);
+  const day = d.getDay(); // 0=日,1=月,...6=土
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+function calcAgeJS(birthDateStr){
+  const birth = new Date(birthDateStr);
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const m = now.getMonth() - birth.getMonth();
+  if(m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+  return age;
+}
+
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -308,6 +331,20 @@ document.getElementById('ex-type').addEventListener('change', e=>{
   document.getElementById('ex-hr-fields').style.display = isSteps ? 'none' : 'block';
 });
 
+document.getElementById('ch-start').addEventListener('change', e=>{
+  const monday = new Date(e.target.value);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+  document.getElementById('ch-end').value = fmtDate(sunday);
+  renderChallengeInput();
+});
+
+function setDefaultWeek(){
+  const monday = getMonday(new Date());
+  const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+  document.getElementById('ch-start').value = fmtDate(monday);
+  document.getElementById('ch-end').value = fmtDate(sunday);
+}
+
 async function apiGet(){
   const url = getGasUrl();
   if(!url){
@@ -318,7 +355,9 @@ async function apiGet(){
   const data = await res.json();
   STATE = data;
   populateRewardOptions();
+  populateExerciseSelects();
   renderChallengeList();
+  renderChallengeInput();
   if(document.getElementById('view-calendar').classList.contains('active')) renderCalendar();
   if(document.getElementById('view-goal').classList.contains('active')) renderGoal();
 }
@@ -339,11 +378,55 @@ async function apiPost(action, data){
 function populateRewardOptions(){
   const sel = document.getElementById('ch-reward');
   sel.innerHTML='';
-  (STATE.settings?.rewardList || []).forEach(r=>{
+  const list = STATE.settings?.rewardList || [];
+  if(list.length === 0){
+    const opt = document.createElement('option');
+    opt.textContent = '（設定_報酬リストシートに選択肢がありません）';
+    opt.disabled = true; opt.selected = true;
+    sel.appendChild(opt);
+    return;
+  }
+  list.forEach(r=>{
     const opt = document.createElement('option');
     opt.value = r; opt.textContent = r;
     sel.appendChild(opt);
   });
+}
+
+function populateExerciseSelects(){
+  if(!STATE.settings) return;
+
+  const age = calcAgeJS(STATE.settings.profile['生年月日']);
+  const group = age >= 65 ? '65歳以上' : '64歳以下';
+
+  const stepSel = document.getElementById('ex-steps-select');
+  stepSel.innerHTML = '';
+  (STATE.settings.stepRule || [])
+    .filter(r => r['年齢区分'] === group)
+    .sort((a,b) => Number(a['下限歩数']) - Number(b['下限歩数']))
+    .forEach(r=>{
+      const opt = document.createElement('option');
+      opt.value = r['下限歩数'];
+      opt.textContent = `${Number(r['下限歩数']).toLocaleString()}歩以上（${r['ポイント']}pt）`;
+      stepSel.appendChild(opt);
+    });
+
+  const hrSel = document.getElementById('ex-hr-select');
+  hrSel.innerHTML = '';
+  const order = { '低負荷': 0, '高負荷': 1 };
+  (STATE.settings.hrRule || [])
+    .slice()
+    .sort((a,b)=>{
+      const oa = order[a['強度']] ?? 0, ob = order[b['強度']] ?? 0;
+      if(oa !== ob) return oa - ob;
+      return Number(a['継続時間分']) - Number(b['継続時間分']);
+    })
+    .forEach(r=>{
+      const opt = document.createElement('option');
+      opt.value = `${r['強度']}|${r['継続時間分']}`;
+      opt.textContent = `${r['強度']}：${r['継続時間分']}分（${r['ポイント']}pt）`;
+      hrSel.appendChild(opt);
+    });
 }
 
 /* ---- 運動記録 ---- */
@@ -354,10 +437,13 @@ async function saveExercise(){
 
   const payload = { date, type };
   if(type === '歩数'){
-    payload.steps = document.getElementById('ex-steps').value;
+    payload.steps = document.getElementById('ex-steps-select').value;
   } else {
-    payload.minutes = document.getElementById('ex-minutes').value;
-    payload.avgHr = document.getElementById('ex-avghr').value;
+    const val = document.getElementById('ex-hr-select').value;
+    if(!val){ showToast('強度・継続時間を選択してください'); return; }
+    const [level, minutes] = val.split('|');
+    payload.level = level;
+    payload.minutes = minutes;
   }
 
   const result = await apiPost('addExercise', payload);
@@ -375,11 +461,43 @@ async function saveChallenge(){
   const end = document.getElementById('ch-end').value;
   const reward = document.getElementById('ch-reward').value;
   if(!start || !end){ showToast('週の開始日・終了日を入力してください'); return; }
+  if(!reward){ showToast('報酬を選択してください'); return; }
 
   const result = await apiPost('addChallenge', { start, end, reward });
   if(result.error){ showToast('エラー: '+result.error); return; }
   showToast(`${result.label} の報酬を保存しました`);
   await apiGet();
+}
+
+function renderChallengeInput(){
+  const start = document.getElementById('ch-start').value;
+  const existing = (STATE.challenges || []).find(c => c.start === start);
+  const achievedArea = document.getElementById('ch-achieved-area');
+  const inputArea = document.getElementById('ch-input-area');
+
+  if(existing){
+    achievedArea.style.display = 'block';
+    inputArea.style.display = 'none';
+    achievedArea.innerHTML = `
+      <span class="achieved-badge">✅ ${existing.label} は入力済み</span>
+      <div class="list-item" style="border:none;padding-bottom:0;">
+        <div class="sub">獲得した報酬</div>
+        <div class="reward">${existing.reward}</div>
+      </div>
+      <button class="btn secondary" style="margin-top:0;" onclick="unlockChallengeEdit()">内容を変更する</button>
+    `;
+  } else {
+    achievedArea.style.display = 'none';
+    inputArea.style.display = 'block';
+  }
+}
+
+function unlockChallengeEdit(){
+  document.getElementById('ch-achieved-area').style.display = 'none';
+  document.getElementById('ch-input-area').style.display = 'block';
+  const start = document.getElementById('ch-start').value;
+  const existing = (STATE.challenges || []).find(c => c.start === start);
+  if(existing) document.getElementById('ch-reward').value = existing.reward;
 }
 
 function renderChallengeList(){
@@ -459,7 +577,6 @@ function renderGoal(){
   const target = goal ? goal.target : 0;
   if(goal) document.getElementById('goal-target').value = target;
 
-  const [gy, gm] = selMonth.split('-').map(Number);
   const achieved = STATE.exercise
     .filter(r => r.date.startsWith(selMonth))
     .reduce((s,r)=> s + Number(r.points||0), 0);
@@ -485,6 +602,7 @@ function renderGoal(){
 document.getElementById('ex-date').value = todayStr();
 document.getElementById('goal-month').value = todayStr().slice(0,7);
 document.getElementById('gas-url-input').value = getGasUrl();
+setDefaultWeek();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=> navigator.serviceWorker.register('service-worker.js').catch(()=>{}));
