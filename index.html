@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Vitality ログ</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0F5257">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F1F6F4;
+    --surface:#FFFFFF;
+    --ink:#16302E;
+    --ink-soft:#5B7370;
+    --teal:#0F5257;
+    --teal-deep:#0A3B3F;
+    --coral:#FF6B4A;
+    --coral-soft:#FFE3DA;
+    --gold:#FFB627;
+    --line:#DCE8E4;
+    --radius:18px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans JP',sans-serif;-webkit-font-smoothing:antialiased;padding-bottom:84px;}
+  h1,h2,h3,.num{font-family:'M PLUS Rounded 1c',sans-serif;}
+  header{
+    background:linear-gradient(135deg,var(--teal) 0%,var(--teal-deep) 100%);
+    color:#fff;padding:28px 20px 40px;position:relative;overflow:hidden;
+  }
+  header::after{
+    content:"";position:absolute;right:-40px;top:-40px;width:180px;height:180px;
+    border-radius:50%;background:radial-gradient(circle,rgba(255,182,39,.35),transparent 70%);
+  }
+  header h1{margin:0;font-size:22px;font-weight:800;letter-spacing:.02em;}
+  header p{margin:6px 0 0;font-size:13px;opacity:.85;}
+  main{max-width:520px;margin:-24px auto 0;padding:0 16px;position:relative;z-index:1;}
+  .card{background:var(--surface);border-radius:var(--radius);padding:18px 18px 20px;margin-bottom:16px;box-shadow:0 8px 24px -12px rgba(15,82,87,.18);}
+  .card h2{font-size:15px;margin:0 0 14px;color:var(--teal-deep);display:flex;align-items:center;gap:8px;}
+  .card h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--coral);display:inline-block;}
+
+  label{display:block;font-size:12px;color:var(--ink-soft);margin:10px 0 4px;font-weight:500;}
+  select,input[type=date],input[type=number],input[type=text]{
+    width:100%;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);
+    font-size:15px;background:#FAFDFC;color:var(--ink);font-family:inherit;
+  }
+  select:focus,input:focus{outline:none;border-color:var(--teal);}
+  .btn{
+    width:100%;margin-top:16px;padding:13px;border:none;border-radius:14px;
+    background:var(--coral);color:#fff;font-weight:700;font-size:14px;letter-spacing:.02em;
+    font-family:'M PLUS Rounded 1c',sans-serif;cursor:pointer;transition:transform .15s ease;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn.secondary{background:var(--teal);}
+  .row{display:flex;gap:10px;}
+  .row>*{flex:1;}
+  .hint{font-size:11px;color:var(--ink-soft);margin-top:8px;line-height:1.5;}
+
+  .point-badge{
+    display:inline-flex;align-items:center;gap:4px;background:var(--coral-soft);color:var(--coral);
+    font-weight:700;padding:4px 10px;border-radius:20px;font-size:13px;margin-top:10px;
+  }
+
+  nav.tabs{
+    position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);
+    display:flex;padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:10;
+  }
+  nav.tabs button{
+    flex:1;background:none;border:none;padding:8px 4px;font-size:11px;color:var(--ink-soft);
+    display:flex;flex-direction:column;align-items:center;gap:3px;font-family:'Noto Sans JP',sans-serif;
+  }
+  nav.tabs button .ic{font-size:19px;}
+  nav.tabs button.active{color:var(--coral);font-weight:700;}
+
+  .view{display:none;}
+  .view.active{display:block;}
+
+  /* カレンダー */
+  .cal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .cal-head button{background:var(--bg);border:none;border-radius:10px;width:32px;height:32px;color:var(--teal-deep);font-size:16px;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+  .cal-dow{text-align:center;font-size:11px;color:var(--ink-soft);padding-bottom:4px;}
+  .cal-cell{
+    aspect-ratio:1;border-radius:10px;background:var(--bg);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;font-size:12px;color:var(--ink-soft);position:relative;
+  }
+  .cal-cell .d{font-size:11px;}
+  .cal-cell .p{font-family:'M PLUS Rounded 1c',sans-serif;font-size:12px;font-weight:700;color:var(--teal);}
+  .cal-cell.has-point{background:var(--coral-soft);}
+  .cal-cell.has-point .p{color:var(--coral);}
+  .cal-cell.today{box-shadow:inset 0 0 0 2px var(--gold);}
+  .cal-cell.empty{background:transparent;}
+  .cal-legend{font-size:11px;color:var(--ink-soft);margin-top:10px;text-align:center;}
+
+  .month-total{display:flex;justify-content:space-between;align-items:flex-end;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);}
+  .month-total .num{font-size:26px;font-weight:800;color:var(--teal-deep);}
+  .month-total .lbl{font-size:11px;color:var(--ink-soft);}
+
+  .goal-bar-track{height:12px;background:var(--bg);border-radius:8px;overflow:hidden;margin-top:10px;}
+  .goal-bar-fill{height:100%;background:linear-gradient(90deg,var(--coral),var(--gold));border-radius:8px;transition:width .4s ease;}
+  .goal-remain{margin-top:8px;font-size:13px;color:var(--ink-soft);}
+  .goal-remain b{color:var(--coral);font-size:16px;}
+
+  .list-item{
+    display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);
+  }
+  .list-item:last-child{border-bottom:none;}
+  .list-item .main{font-size:13px;font-weight:500;}
+  .list-item .sub{font-size:11px;color:var(--ink-soft);margin-top:2px;}
+  .list-item .reward{font-size:13px;background:var(--bg);padding:4px 10px;border-radius:10px;color:var(--teal-deep);font-weight:500;}
+  .empty-state{text-align:center;padding:24px 8px;color:var(--ink-soft);font-size:13px;}
+
+  #toast{
+    position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(10px);
+    background:var(--teal-deep);color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;
+    opacity:0;pointer-events:none;transition:all .25s ease;z-index:20;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Vitality ログ</h1>
+  <p>運動記録・週間チャレンジ・ポイントを一元管理</p>
+</header>
+
+<main>
+
+  <!-- 記録タブ -->
+  <section id="view-record" class="view active">
+    <div class="card">
+      <h2><span class="dot"></span>日々の運動を記録</h2>
+      <label>日付</label>
+      <input type="date" id="ex-date">
+
+      <label>種別</label>
+      <select id="ex-type">
+        <option value="歩数">歩数</option>
+        <option value="心拍数">心拍数（時間でカウント）</option>
+      </select>
+
+      <div id="ex-steps-fields">
+        <label>歩数</label>
+        <input type="number" id="ex-steps" placeholder="例: 10000" inputmode="numeric">
+      </div>
+
+      <div id="ex-hr-fields" style="display:none;">
+        <div class="row">
+          <div>
+            <label>継続時間（分）</label>
+            <input type="number" id="ex-minutes" placeholder="例: 30" inputmode="numeric">
+          </div>
+          <div>
+            <label>平均心拍数</label>
+            <input type="number" id="ex-avghr" placeholder="例: 120" inputmode="numeric">
+          </div>
+        </div>
+      </div>
+
+      <button class="btn" onclick="saveExercise()">記録してポイント計算</button>
+      <div id="ex-result"></div>
+      <p class="hint">同じ日に複数回入力した場合は最新の内容で上書きされます。1日の獲得ポイントは歩数・心拍数のうち高い方のみが有効というVitalityの仕様に準じ、上書き保存としています。</p>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot"></span>週間チャレンジの報酬を記録</h2>
+      <div class="row">
+        <div>
+          <label>週開始日（月曜想定）</label>
+          <input type="date" id="ch-start">
+        </div>
+        <div>
+          <label>週終了日</label>
+          <input type="date" id="ch-end">
+        </div>
+      </div>
+      <label>獲得した報酬</label>
+      <select id="ch-reward"></select>
+      <button class="btn secondary" onclick="saveChallenge()">報酬を保存</button>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot"></span>週間チャレンジ履歴</h2>
+      <div id="challenge-list"><div class="empty-state">まだ記録がありません</div></div>
+    </div>
+  </section>
+
+  <!-- カレンダータブ -->
+  <section id="view-calendar" class="view">
+    <div class="card">
+      <div class="cal-head">
+        <button onclick="shiftMonth(-1)">‹</button>
+        <h2 id="cal-title" style="margin:0;"></h2>
+        <button onclick="shiftMonth(1)">›</button>
+      </div>
+      <div class="cal-grid" id="cal-dow-row"></div>
+      <div class="cal-grid" id="cal-grid" style="margin-top:5px;"></div>
+      <div class="cal-legend">数字は当日の獲得ポイント</div>
+      <div class="month-total">
+        <div>
+          <div class="lbl">今月の合計獲得ポイント</div>
+          <div class="num" id="month-total-num">0</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 目標タブ -->
+  <section id="view-goal" class="view">
+    <div class="card">
+      <h2><span class="dot"></span>月間目標</h2>
+      <label>対象月</label>
+      <input type="month" id="goal-month">
+      <label>目標ポイント</label>
+      <input type="number" id="goal-target" placeholder="例: 2000" inputmode="numeric">
+      <button class="btn secondary" onclick="saveGoal()">目標を保存</button>
+
+      <div class="goal-bar-track"><div class="goal-bar-fill" id="goal-bar" style="width:0%;"></div></div>
+      <div class="goal-remain" id="goal-remain-text">目標を設定してください</div>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot"></span>基本設定について</h2>
+      <p class="hint">生年月日・歩数/心拍数のポイント換算ルール・週間チャレンジの報酬候補は、連携しているGoogleスプレッドシートの「設定_基本情報」「設定_歩数ポイント」「設定_心拍数ポイント」「設定_報酬リスト」シートを直接編集することで更新できます。アプリ側の修正は不要です。</p>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot"></span>接続設定</h2>
+      <label>GAS ウェブアプリ URL</label>
+      <input type="text" id="gas-url-input" placeholder="https://script.google.com/macros/s/xxxx/exec">
+      <button class="btn secondary" onclick="saveGasUrl()">この端末に保存</button>
+      <p class="hint">この端末のブラウザ内にのみ保存され、ソースコードやGitHubリポジトリには含まれません。他の端末で開いた場合は再度入力が必要です。</p>
+    </div>
+  </section>
+
+</main>
+
+<div id="setup-overlay" style="display:none;position:fixed;inset:0;background:rgba(10,59,63,.92);z-index:50;align-items:center;justify-content:center;padding:20px;">
+  <div class="card" style="max-width:420px;width:100%;">
+    <h2><span class="dot"></span>初回設定：GAS URLを入力</h2>
+    <p class="hint">Google Apps ScriptでデプロイしたウェブアプリのURLを入力してください。この情報はこの端末のブラウザ内にのみ保存され、コード上には残りません。</p>
+    <input type="text" id="gas-url-input-overlay" placeholder="https://script.google.com/macros/s/xxxx/exec">
+    <button class="btn" onclick="saveGasUrl(true)">保存して開始</button>
+  </div>
+</div>
+
+<nav class="tabs">
+  <button class="active" data-view="view-record" onclick="switchTab('view-record')">
+    <span class="ic">✏️</span>記録
+  </button>
+  <button data-view="view-calendar" onclick="switchTab('view-calendar')">
+    <span class="ic">📅</span>カレンダー
+  </button>
+  <button data-view="view-goal" onclick="switchTab('view-goal')">
+    <span class="ic">🎯</span>目標
+  </button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+// GAS URLはソースコードに書かず、この端末のlocalStorageにのみ保存する
+function getGasUrl(){
+  return localStorage.getItem('vitality_gas_url') || '';
+}
+
+function saveGasUrl(fromOverlay){
+  const val = (fromOverlay
+    ? document.getElementById('gas-url-input-overlay').value
+    : document.getElementById('gas-url-input').value
+  ).trim();
+  if(!val){ showToast('URLを入力してください'); return; }
+  localStorage.setItem('vitality_gas_url', val);
+  document.getElementById('gas-url-input').value = val;
+  document.getElementById('setup-overlay').style.display = 'none';
+  showToast('保存しました');
+  apiGet();
+}
+
+let STATE = { exercise: [], challenges: [], goals: [], settings: null };
+let calCursor = new Date();
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function switchTab(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('active', b.dataset.view===id));
+  if(id==='view-calendar') renderCalendar();
+  if(id==='view-goal') renderGoal();
+}
+
+document.getElementById('ex-type').addEventListener('change', e=>{
+  const isSteps = e.target.value === '歩数';
+  document.getElementById('ex-steps-fields').style.display = isSteps ? 'block' : 'none';
+  document.getElementById('ex-hr-fields').style.display = isSteps ? 'none' : 'block';
+});
+
+async function apiGet(){
+  const url = getGasUrl();
+  if(!url){
+    document.getElementById('setup-overlay').style.display = 'flex';
+    return;
+  }
+  const res = await fetch(url);
+  const data = await res.json();
+  STATE = data;
+  populateRewardOptions();
+  renderChallengeList();
+  if(document.getElementById('view-calendar').classList.contains('active')) renderCalendar();
+  if(document.getElementById('view-goal').classList.contains('active')) renderGoal();
+}
+
+async function apiPost(action, data){
+  const url = getGasUrl();
+  if(!url){
+    document.getElementById('setup-overlay').style.display = 'flex';
+    return { error: 'GAS URL未設定' };
+  }
+  const res = await fetch(url, {
+    method:'POST',
+    body: JSON.stringify({action, data})
+  });
+  return res.json();
+}
+
+function populateRewardOptions(){
+  const sel = document.getElementById('ch-reward');
+  sel.innerHTML='';
+  (STATE.settings?.rewardList || []).forEach(r=>{
+    const opt = document.createElement('option');
+    opt.value = r; opt.textContent = r;
+    sel.appendChild(opt);
+  });
+}
+
+/* ---- 運動記録 ---- */
+async function saveExercise(){
+  const date = document.getElementById('ex-date').value;
+  const type = document.getElementById('ex-type').value;
+  if(!date){ showToast('日付を入力してください'); return; }
+
+  const payload = { date, type };
+  if(type === '歩数'){
+    payload.steps = document.getElementById('ex-steps').value;
+  } else {
+    payload.minutes = document.getElementById('ex-minutes').value;
+    payload.avgHr = document.getElementById('ex-avghr').value;
+  }
+
+  const result = await apiPost('addExercise', payload);
+  if(result.error){ showToast('エラー: '+result.error); return; }
+
+  document.getElementById('ex-result').innerHTML =
+    `<div class="point-badge">🔥 ${result.points} ポイント獲得</div>`;
+  showToast('記録を保存しました');
+  await apiGet();
+}
+
+/* ---- 週間チャレンジ ---- */
+async function saveChallenge(){
+  const start = document.getElementById('ch-start').value;
+  const end = document.getElementById('ch-end').value;
+  const reward = document.getElementById('ch-reward').value;
+  if(!start || !end){ showToast('週の開始日・終了日を入力してください'); return; }
+
+  const result = await apiPost('addChallenge', { start, end, reward });
+  if(result.error){ showToast('エラー: '+result.error); return; }
+  showToast(`${result.label} の報酬を保存しました`);
+  await apiGet();
+}
+
+function renderChallengeList(){
+  const wrap = document.getElementById('challenge-list');
+  const list = [...STATE.challenges].sort((a,b)=> b.start.localeCompare(a.start));
+  if(list.length === 0){
+    wrap.innerHTML = '<div class="empty-state">まだ記録がありません</div>';
+    return;
+  }
+  wrap.innerHTML = list.map(c => `
+    <div class="list-item">
+      <div>
+        <div class="main">${c.label}</div>
+        <div class="sub">${c.start} 〜 ${c.end}</div>
+      </div>
+      <div class="reward">${c.reward}</div>
+    </div>
+  `).join('');
+}
+
+/* ---- カレンダー ---- */
+function shiftMonth(n){
+  calCursor.setMonth(calCursor.getMonth()+n);
+  renderCalendar();
+}
+
+function renderCalendar(){
+  const y = calCursor.getFullYear(), m = calCursor.getMonth();
+  document.getElementById('cal-title').textContent = `${y}年${m+1}月`;
+
+  const dowRow = document.getElementById('cal-dow-row');
+  dowRow.innerHTML = ['日','月','火','水','木','金','土'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
+
+  const pointMap = {};
+  STATE.exercise.forEach(r => { pointMap[r.date] = (pointMap[r.date]||0) + Number(r.points||0); });
+
+  const firstDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const grid = document.getElementById('cal-grid');
+  let html = '';
+  for(let i=0;i<firstDow;i++) html += '<div class="cal-cell empty"></div>';
+
+  let monthTotal = 0;
+  for(let day=1; day<=daysInMonth; day++){
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const pt = pointMap[dateStr] || 0;
+    monthTotal += pt;
+    const isToday = dateStr === todayStr();
+    html += `<div class="cal-cell ${pt>0?'has-point':''} ${isToday?'today':''}">
+      <div class="d">${day}</div>
+      <div class="p">${pt>0? pt : ''}</div>
+    </div>`;
+  }
+  grid.innerHTML = html;
+  document.getElementById('month-total-num').textContent = monthTotal;
+}
+
+/* ---- 月間目標 ---- */
+async function saveGoal(){
+  const month = document.getElementById('goal-month').value;
+  const target = document.getElementById('goal-target').value;
+  if(!month || !target){ showToast('対象月と目標ポイントを入力してください'); return; }
+  await apiPost('setGoal', { month, target: Number(target) });
+  showToast('目標を保存しました');
+  await apiGet();
+  renderGoal();
+}
+
+function renderGoal(){
+  const now = new Date();
+  const curMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  if(!document.getElementById('goal-month').value){
+    document.getElementById('goal-month').value = curMonth;
+  }
+  const selMonth = document.getElementById('goal-month').value || curMonth;
+  const goal = STATE.goals.find(g => g.month === selMonth);
+  const target = goal ? goal.target : 0;
+  if(goal) document.getElementById('goal-target').value = target;
+
+  const [gy, gm] = selMonth.split('-').map(Number);
+  const achieved = STATE.exercise
+    .filter(r => r.date.startsWith(selMonth))
+    .reduce((s,r)=> s + Number(r.points||0), 0);
+
+  const bar = document.getElementById('goal-bar');
+  const remainText = document.getElementById('goal-remain-text');
+
+  if(target > 0){
+    const pct = Math.min(100, Math.round((achieved/target)*100));
+    bar.style.width = pct + '%';
+    if(achieved >= target){
+      remainText.innerHTML = `🎉 目標達成済み！（${achieved} / ${target} pt）`;
+    } else {
+      remainText.innerHTML = `あと <b>${target-achieved}</b> ポイントで目標達成（${achieved} / ${target} pt）`;
+    }
+  } else {
+    bar.style.width = '0%';
+    remainText.textContent = '目標を設定してください';
+  }
+}
+
+/* ---- 初期化 ---- */
+document.getElementById('ex-date').value = todayStr();
+document.getElementById('goal-month').value = todayStr().slice(0,7);
+document.getElementById('gas-url-input').value = getGasUrl();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=> navigator.serviceWorker.register('service-worker.js').catch(()=>{}));
+}
+
+apiGet();
+</script>
+</body>
+</html>
