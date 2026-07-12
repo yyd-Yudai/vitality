@@ -143,7 +143,7 @@
       <label>種別</label>
       <select id="ex-type">
         <option value="歩数">歩数</option>
-        <option value="心拍数">心拍数（時間でカウント）</option>
+        <option value="心拍数">心拍数</option>
       </select>
 
       <div id="ex-steps-fields">
@@ -455,7 +455,7 @@ function populateExerciseSelects(){
     hrRows.forEach(r=>{
       const opt = document.createElement('option');
       opt.value = `${r['強度']}|${r['継続時間分']}`;
-      opt.textContent = `${r['強度']}：${r['継続時間分']}分`;
+      opt.textContent = `${r['強度']}：${r['継続時間分']}分（${r['ポイント']}pt）`;
       hrSel.appendChild(opt);
     });
   }
