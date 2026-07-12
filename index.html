@@ -42,10 +42,12 @@
 
   label{display:block;font-size:12px;color:var(--ink-soft);margin:10px 0 4px;font-weight:500;}
   select,input[type=date],input[type=number],input[type=text],input[type=month]{
-    width:100%;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);
+    width:100%;max-width:100%;min-width:0;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);
     font-size:15px;background:#FAFDFC;color:var(--ink);font-family:inherit;
   }
   select:focus,input:focus{outline:none;border-color:var(--teal);}
+  .date-field{display:flex;width:100%;}
+  .date-field > input[type=date],.date-field > input[type=month]{flex:1 1 0;width:0;min-width:0;}
   input[readonly]{background:var(--bg);color:var(--ink-soft);}
   .btn{
     width:100%;margin-top:16px;padding:13px;border:none;border-radius:14px;
@@ -55,7 +57,7 @@
   .btn:active{transform:scale(.97);}
   .btn.secondary{background:var(--teal);}
   .row{display:flex;gap:10px;}
-  .row>*{flex:1;}
+  .row>*{flex:1;min-width:0;}
   .hint{font-size:11px;color:var(--ink-soft);margin-top:8px;line-height:1.5;}
 
   .point-badge{
@@ -139,7 +141,7 @@
     <div class="card">
       <h2><span class="dot"></span>日々の運動を記録</h2>
       <label>日付</label>
-      <input type="date" id="ex-date">
+      <div class="date-field"><input type="date" id="ex-date"></div>
 
       <label>種別</label>
       <select id="ex-type">
@@ -167,11 +169,11 @@
       <div class="row">
         <div>
           <label>週開始日（月曜）</label>
-          <input type="date" id="ch-start">
+          <div class="date-field"><input type="date" id="ch-start"></div>
         </div>
         <div>
           <label>週終了日（日曜）</label>
-          <input type="date" id="ch-end" readonly>
+          <div class="date-field"><input type="date" id="ch-end" readonly></div>
         </div>
       </div>
 
@@ -186,7 +188,21 @@
 
     <div class="card">
       <h2><span class="dot"></span>週間チャレンジ履歴</h2>
-      <div id="challenge-list"><div class="empty-state">まだ記録がありません</div></div>
+      <div id="challenge-list-recent"><div class="empty-state">まだ記録がありません</div></div>
+      <button id="challenge-view-all-btn" class="btn secondary" style="display:none;" onclick="switchTab('view-history')">すべての履歴を見る →</button>
+    </div>
+  </section>
+
+  <!-- 履歴タブ -->
+  <section id="view-history" class="view">
+    <div class="card">
+      <h2><span class="dot"></span>報酬の割合</h2>
+      <div id="reward-stats"><div class="empty-state">まだ記録がありません</div></div>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot"></span>週間チャレンジ全履歴</h2>
+      <div id="challenge-list-full"><div class="empty-state">まだ記録がありません</div></div>
     </div>
   </section>
 
@@ -215,7 +231,7 @@
     <div class="card">
       <h2><span class="dot"></span>月間目標（固定 1,200pt）</h2>
       <label>対象月</label>
-      <input type="month" id="goal-month">
+      <div class="date-field"><input type="month" id="goal-month"></div>
 
       <div class="goal-bar-track"><div class="goal-bar-fill" id="goal-bar" style="width:0%;"></div></div>
       <div class="goal-remain" id="goal-remain-text">目標を設定してください</div>
@@ -252,6 +268,9 @@
   </button>
   <button data-view="view-calendar" onclick="switchTab('view-calendar')">
     <span class="ic">📅</span>カレンダー
+  </button>
+  <button data-view="view-history" onclick="switchTab('view-history')">
+    <span class="ic">📜</span>履歴
   </button>
   <button data-view="view-goal" onclick="switchTab('view-goal')">
     <span class="ic">🎯</span>目標
@@ -539,14 +558,8 @@ function unlockChallengeEdit(){
   if(existing) document.getElementById('ch-reward').value = existing.reward;
 }
 
-function renderChallengeList(){
-  const wrap = document.getElementById('challenge-list');
-  const list = [...STATE.challenges].sort((a,b)=> b.start.localeCompare(a.start));
-  if(list.length === 0){
-    wrap.innerHTML = '<div class="empty-state">まだ記録がありません</div>';
-    return;
-  }
-  wrap.innerHTML = list.map(c => `
+function challengeItemHtml(c){
+  return `
     <div class="list-item">
       <div>
         <div class="main">${c.label}</div>
@@ -554,7 +567,74 @@ function renderChallengeList(){
       </div>
       <div class="reward">${c.reward}</div>
     </div>
-  `).join('');
+  `;
+}
+
+function renderChallengeList(){
+  const list = [...STATE.challenges].sort((a,b)=> b.start.localeCompare(a.start));
+
+  const recentWrap = document.getElementById('challenge-list-recent');
+  const viewAllBtn = document.getElementById('challenge-view-all-btn');
+  if(list.length === 0){
+    recentWrap.innerHTML = '<div class="empty-state">まだ記録がありません</div>';
+    viewAllBtn.style.display = 'none';
+  } else {
+    recentWrap.innerHTML = list.slice(0,3).map(challengeItemHtml).join('');
+    viewAllBtn.style.display = list.length > 3 ? 'block' : 'none';
+  }
+
+  const fullWrap = document.getElementById('challenge-list-full');
+  fullWrap.innerHTML = list.length === 0
+    ? '<div class="empty-state">まだ記録がありません</div>'
+    : list.map(challengeItemHtml).join('');
+
+  renderRewardStats(list);
+}
+
+const REWARD_PALETTE = ['#FF6B4A','#0F5257','#FFB627','#5B7370','#8FCB9B','#C084FC','#4EA8DE','#F4845F','#E85D75','#7FB800'];
+
+function renderRewardStats(list){
+  const wrap = document.getElementById('reward-stats');
+  if(list.length === 0){
+    wrap.innerHTML = '<div class="empty-state">まだ記録がありません</div>';
+    return;
+  }
+  const counts = {};
+  list.forEach(c => { counts[c.reward] = (counts[c.reward]||0) + 1; });
+  const total = list.length;
+  const sorted = Object.entries(counts).sort((a,b)=> b[1]-a[1]);
+
+  let cumulative = 0;
+  const gradientParts = sorted.map(([reward, count], i) => {
+    const startDeg = (cumulative / total) * 360;
+    cumulative += count;
+    const endDeg = (cumulative / total) * 360;
+    const color = REWARD_PALETTE[i % REWARD_PALETTE.length];
+    return `${color} ${startDeg}deg ${endDeg}deg`;
+  });
+  const gradient = `conic-gradient(${gradientParts.join(', ')})`;
+
+  const legend = sorted.map(([reward, count], i) => {
+    const pct = Math.round((count/total)*1000)/10;
+    const color = REWARD_PALETTE[i % REWARD_PALETTE.length];
+    return `
+      <div class="list-item">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:11px;height:11px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0;"></span>
+          <span class="main">${reward}</span>
+        </div>
+        <div class="sub">${count}回（${pct}%）</div>
+      </div>
+    `;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div style="display:flex;justify-content:center;margin-bottom:16px;">
+      <div style="width:170px;height:170px;border-radius:50%;background:${gradient};box-shadow:0 4px 16px -6px rgba(15,82,87,.3);"></div>
+    </div>
+    ${legend}
+    <div class="hint">全${total}週分の集計です</div>
+  `;
 }
 
 /* ---- カレンダー ---- */
