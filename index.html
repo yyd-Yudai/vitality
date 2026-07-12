@@ -148,12 +148,12 @@
 
       <div id="ex-steps-fields">
         <label>歩数</label>
-        <select id="ex-steps-select"></select>
+        <select id="ex-steps-select"><option value="">読み込み中...</option></select>
       </div>
 
       <div id="ex-hr-fields" style="display:none;">
         <label>強度・継続時間</label>
-        <select id="ex-hr-select"></select>
+        <select id="ex-hr-select"><option value="">読み込み中...</option></select>
       </div>
 
       <button class="btn" onclick="saveExercise()">記録してポイント計算</button>
@@ -178,7 +178,7 @@
 
       <div id="ch-input-area">
         <label>獲得した報酬</label>
-        <select id="ch-reward"></select>
+        <select id="ch-reward"><option value="">読み込み中...</option></select>
         <button class="btn secondary" onclick="saveChallenge()">報酬を保存</button>
       </div>
     </div>
@@ -348,13 +348,20 @@ async function apiGet(){
     document.getElementById('setup-overlay').style.display = 'flex';
     return;
   }
-  let data;
+  let text, data;
   try {
     const res = await fetch(url);
-    data = await res.json();
+    text = await res.text();
   } catch(err) {
-    console.error('apiGet failed', err);
-    showToast('データ取得に失敗しました。GAS URLやデプロイ設定を確認してください');
+    console.error('apiGet: fetch自体が失敗', err);
+    showToast('通信に失敗しました: ' + err.message);
+    return;
+  }
+  try {
+    data = JSON.parse(text);
+  } catch(err) {
+    console.error('apiGet: JSON解析に失敗。サーバーからの生レスポンス:', text);
+    showToast('サーバー応答がJSON形式ではありません（詳細はブラウザのコンソールを確認）');
     return;
   }
   if(data && data.error){
@@ -448,7 +455,7 @@ function populateExerciseSelects(){
     hrRows.forEach(r=>{
       const opt = document.createElement('option');
       opt.value = `${r['強度']}|${r['継続時間分']}`;
-      opt.textContent = `${r['強度']}：${r['継続時間分']}分（${r['ポイント']}pt）`;
+      opt.textContent = `${r['強度']}：${r['継続時間分']}分`;
       hrSel.appendChild(opt);
     });
   }
