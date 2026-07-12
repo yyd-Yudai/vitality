@@ -437,6 +437,9 @@ function populateExerciseSelects(){
       opt.textContent = `${Number(r['下限歩数']).toLocaleString()}歩以上（${r['ポイント']}pt）`;
       stepSel.appendChild(opt);
     });
+    if(stepRows.some(r => String(r['下限歩数']) === '10000')){
+      stepSel.value = '10000';
+    }
   }
 
   const order = { '低負荷': 0, '高負荷': 1 };
@@ -458,6 +461,9 @@ function populateExerciseSelects(){
       opt.textContent = `${r['強度']}：${r['継続時間分']}分（${r['ポイント']}pt）`;
       hrSel.appendChild(opt);
     });
+    if(hrRows.some(r => String(r['強度']) === '高負荷' && String(r['継続時間分']) === '15')){
+      hrSel.value = '高負荷|15';
+    }
   }
 }
 
